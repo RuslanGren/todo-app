@@ -22,6 +22,9 @@ public class ProjectEntity {
     private String name;
 
     @Builder.Default
+    private Instant updatedAt = Instant.now();
+
+    @Builder.Default
     private Instant createdAt = Instant.now();
 
     @Builder.Default
