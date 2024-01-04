@@ -31,7 +31,7 @@ public class ProjectServiceImpl implements ProjectService {
 
         Stream<ProjectEntity> projectStream = optionalPrefixName
                 .map(projectRepository::streamAllByNameStartsWithIgnoreCase)
-                .orElseGet(projectRepository::streamAll);
+                .orElseGet(projectRepository::streamAllBy);
 
         return projectStream
                 .map(projectDtoFactory::makeProjectDto)

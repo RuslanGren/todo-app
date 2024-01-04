@@ -18,7 +18,7 @@ public class ProjectController {
     public static final String CREATE_OR_UPDATE_PROJECT = "/api/projects";
     public static final String DELETE_PROJECT = "/api/projects/{project_id}";
 
-    @PostMapping(FETCH_PROJECTS)
+    @GetMapping(FETCH_PROJECTS)
     public List<ProjectDto> fetchProjects(
             @RequestParam(value = "prefix_name", required = false) Optional<String> optionalPrefixName) {
         return projectService.fetchProjects(optionalPrefixName);
