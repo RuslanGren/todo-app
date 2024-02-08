@@ -16,9 +16,10 @@ import java.util.List;
 @Table(name = "project")
 public class ProjectEntity {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE)
     private Long id;
 
+    @Column(unique = true)
     private String name;
 
     @Builder.Default

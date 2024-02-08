@@ -7,7 +7,6 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
-@Repository
 public interface ProjectService {
     List<ProjectDto> fetchProjects(Optional<String> optionalPrefixName);
 
