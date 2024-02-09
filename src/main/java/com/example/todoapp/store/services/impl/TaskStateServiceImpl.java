@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -57,14 +58,17 @@ public class TaskStateServiceImpl implements TaskStateService {
                     throw new BadRequestException(String.format("Task state with %s already exists", taskStateName));
                 });
 
+        Optional<TaskStateEntity> optionalAnotherTaskState = taskStateRepository
+                .findTaskStateEntityByRightTaskStateIdIsNullAndProjectId(projectId);
+
         TaskStateEntity taskState = taskStateRepository.saveAndFlush(
                 TaskStateEntity.builder()
                         .name(taskStateName)
+                        .project(project)
                         .build()
         );
 
-        taskStateRepository
-                .findTaskStateEntityByRightTaskStateIdIsNullAndProjectId(projectId)
+        optionalAnotherTaskState
                 .ifPresent(anotherTaskState -> {
 
                     taskState.setLeftTaskState(anotherTaskState);
