@@ -14,6 +14,7 @@ public class TaskStateController {
 
     public static final String GET_TASK_STATES = "/api/projects/{project_id}/task-states";
     public static final String CREATE_TASK_STATE = "/api/projects/{project_id}/task-states";
+    public static final String UPDATE_TASK_STATE = "/api/task-states/{task_state_id}";
 
     @GetMapping(GET_TASK_STATES)
     public List<TaskStateDto> getTaskStates(@PathVariable(name = "project_id") Long projectId) {
@@ -23,7 +24,16 @@ public class TaskStateController {
     @PostMapping(CREATE_TASK_STATE)
     public TaskStateDto createTaskState(
             @PathVariable(name = "project_id") Long projectId,
-            @RequestParam(name = "task_state_name") String taskStateName) {
+            @RequestParam(name = "task_state_name") String taskStateName
+    ) {
         return taskStateService.createTaskState(projectId, taskStateName);
+    }
+
+    @PatchMapping(UPDATE_TASK_STATE)
+    public TaskStateDto updateTaskState(
+            @PathVariable(name = "task_state_id") Long taskStateId,
+            @RequestParam(name = "task_state_name") String taskStateName
+    ) {
+        return taskStateService.updateTaskState(taskStateId, taskStateName);
     }
 }

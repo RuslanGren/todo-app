@@ -3,6 +3,7 @@ package com.example.todoapp.store.services.impl;
 import com.example.todoapp.api.controllers.helpers.ControllerHelper;
 import com.example.todoapp.api.dto.TaskStateDto;
 import com.example.todoapp.api.exceptions.BadRequestException;
+import com.example.todoapp.api.exceptions.NotFoundException;
 import com.example.todoapp.api.factories.TaskStateDtoFactory;
 import com.example.todoapp.store.entities.ProjectEntity;
 import com.example.todoapp.store.entities.TaskStateEntity;
@@ -49,17 +50,18 @@ public class TaskStateServiceImpl implements TaskStateService {
 
         ProjectEntity project = controllerHelper.getProjectOrThrowException(projectId);
 
-        project
-                .getTaskStates()
-                .stream()
-                .map(TaskStateEntity::getName)
-                .filter(anotherTaskStateName -> anotherTaskStateName.equals(taskStateName))
-                .findAny().ifPresent(it -> {
-                    throw new BadRequestException(String.format("Task state with %s already exists", taskStateName));
-                });
+        Optional<TaskStateEntity> optionalAnotherTaskState = Optional.empty();
 
-        Optional<TaskStateEntity> optionalAnotherTaskState = taskStateRepository
-                .findTaskStateEntityByRightTaskStateIdIsNullAndProjectId(projectId);
+        for (TaskStateEntity taskState: project.getTaskStates()) {
+            if (taskState.getName().equalsIgnoreCase(taskStateName)) {
+                throw new BadRequestException(String.format("Task state %s already exists", taskStateName));
+            }
+
+            if (taskState.getRightTaskState().isEmpty()) {
+                optionalAnotherTaskState = Optional.of(taskState);
+                break;
+            }
+        }
 
         TaskStateEntity taskState = taskStateRepository.saveAndFlush(
                 TaskStateEntity.builder()
@@ -70,7 +72,6 @@ public class TaskStateServiceImpl implements TaskStateService {
 
         optionalAnotherTaskState
                 .ifPresent(anotherTaskState -> {
-
                     taskState.setLeftTaskState(anotherTaskState);
 
                     anotherTaskState.setRightTaskState(taskState);
@@ -82,5 +83,45 @@ public class TaskStateServiceImpl implements TaskStateService {
 
         return taskStateDtoFactory.makeTaskStateDto(savedTaskState);
 
+    }
+
+    @Override
+    @Transactional
+    public TaskStateDto updateTaskState(Long taskStateId, String taskStateName) {
+
+        if (taskStateName.trim().isEmpty()) {
+            throw new BadRequestException("Task state name can't be empty.");
+        }
+
+        TaskStateEntity taskState = getTaskStateOrThrowException(taskStateId);
+
+        taskStateRepository
+                .findTaskStateEntityByProjectIdAndNameContainsIgnoreCase(
+                        taskState.getProject().getId(),
+                        taskStateName
+                )
+                .filter(anotherTaskState -> !anotherTaskState.getId().equals(taskStateId))
+                .ifPresent(anotherTaskState -> {
+                    throw new BadRequestException(String.format("Task state %s already exists.", taskStateName));
+                });
+
+        taskState.setName(taskStateName);
+
+        taskState = taskStateRepository.saveAndFlush(taskState);
+
+        return taskStateDtoFactory.makeTaskStateDto(taskState);
+    }
+
+    private TaskStateEntity getTaskStateOrThrowException(Long taskStateId) {
+        return taskStateRepository
+                .findById(taskStateId)
+                .orElseThrow(() ->
+                        new NotFoundException(
+                                String.format(
+                                "Task state with %s id doesn't exist."
+                                , taskStateId
+                                )
+                        )
+                );
     }
 }
