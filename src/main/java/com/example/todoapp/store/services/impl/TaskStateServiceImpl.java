@@ -1,6 +1,7 @@
 package com.example.todoapp.store.services.impl;
 
 import com.example.todoapp.api.controllers.helpers.ControllerHelper;
+import com.example.todoapp.api.dto.AckDto;
 import com.example.todoapp.api.dto.TaskStateDto;
 import com.example.todoapp.api.exceptions.BadRequestException;
 import com.example.todoapp.api.exceptions.NotFoundException;
@@ -110,6 +111,125 @@ public class TaskStateServiceImpl implements TaskStateService {
         taskState = taskStateRepository.saveAndFlush(taskState);
 
         return taskStateDtoFactory.makeTaskStateDto(taskState);
+    }
+
+    @Override
+    @Transactional
+    public TaskStateDto changeTaskStatePosition(Long taskStateId, Optional<Long> optionalLeftTaskStateId) {
+        // taskStateId таска яку ми туда сюда хуярим
+        // leftTaskStateId таска яка зліва нового місця taskStateId
+        // получаємо правого старого сусіда leftTaskStateId і їбашим його правим сусідом taskStateId
+        // робимо taskStateId новим правим сусідом leftTaskStateId
+        // робимо leftTaskStateId новим лівом сусідом taskStateId
+
+        TaskStateEntity changeTaskState = getTaskStateOrThrowException(taskStateId);
+
+        ProjectEntity project = changeTaskState.getProject();
+
+        Optional<Long> optionalOldLeftTaskStateId = changeTaskState
+                .getLeftTaskState()
+                .map(TaskStateEntity::getId);
+
+        if (optionalOldLeftTaskStateId.equals(optionalLeftTaskStateId)) { // то коли користувач ніхуя не міняє позицію таски
+            return taskStateDtoFactory.makeTaskStateDto(changeTaskState);
+        }
+
+        Optional<TaskStateEntity> optionalNewLeftTaskState;
+        if (optionalLeftTaskStateId.isPresent()) {
+            Long leftTaskStateId = optionalLeftTaskStateId.get();
+            if (taskStateId.equals(leftTaskStateId)) {
+                throw new BadRequestException("Left task state id equals changed task state");
+            }
+
+            TaskStateEntity leftTaskStateEntity = getTaskStateOrThrowException(leftTaskStateId);
+
+            if (!project.getId().equals(leftTaskStateEntity.getProject().getId())) {
+                throw new BadRequestException("Task state position can be changed within the same project");
+            }
+
+            optionalNewLeftTaskState = Optional.of(leftTaskStateEntity);
+        } else {
+            optionalNewLeftTaskState = Optional.empty();
+        }
+
+        Optional<TaskStateEntity> optionalNewRightTaskState;
+        if (optionalNewLeftTaskState.isEmpty()) { // якщо лівого сусіда не існує тоді правий сусід є найправіша таска
+
+            optionalNewRightTaskState = project
+                    .getTaskStates()
+                    .stream()
+                    .filter(anotherTaskState -> anotherTaskState.getLeftTaskState().isEmpty())
+                    .findAny();
+        } else { // якщо лівий сусід існує тоді ми получаємо праву таску з лівої таски
+            optionalNewRightTaskState = optionalNewLeftTaskState
+                    .get()
+                    .getRightTaskState();
+        }
+
+        replaceOldTaskStatePosition(changeTaskState);
+
+        if (optionalNewLeftTaskState.isPresent()) {
+
+            TaskStateEntity newLeftTaskState = optionalNewLeftTaskState.get();
+
+            newLeftTaskState.setRightTaskState(changeTaskState);
+
+            changeTaskState.setLeftTaskState(newLeftTaskState);
+        } else {
+            changeTaskState.setLeftTaskState(null);
+        }
+
+        if (optionalNewRightTaskState.isPresent()) {
+
+            TaskStateEntity newRightTaskState = optionalNewRightTaskState.get();
+
+            newRightTaskState.setLeftTaskState(changeTaskState);
+
+            changeTaskState.setRightTaskState(newRightTaskState);
+        } else {
+            changeTaskState.setRightTaskState(null);
+        }
+
+        changeTaskState = taskStateRepository.saveAndFlush(changeTaskState);
+
+        optionalNewLeftTaskState
+                .ifPresent(taskStateRepository::saveAndFlush);
+
+        optionalNewRightTaskState
+                .ifPresent(taskStateRepository::saveAndFlush);
+
+        return taskStateDtoFactory.makeTaskStateDto(changeTaskState);
+    }
+
+    @Override
+    @Transactional
+    public AckDto deleteTaskState(Long taskStateId) {
+        TaskStateEntity changeTaskState = getTaskStateOrThrowException(taskStateId);
+
+        replaceOldTaskStatePosition(changeTaskState);
+
+        taskStateRepository.delete(changeTaskState);
+
+        return AckDto.builder().answer(true).build();
+    }
+
+    private void replaceOldTaskStatePosition(TaskStateEntity changeTaskState) {
+        Optional<TaskStateEntity> optionalOldLeftTaskState = changeTaskState.getLeftTaskState();
+        Optional<TaskStateEntity> optionalOldRightTaskState = changeTaskState.getRightTaskState();
+
+        optionalOldLeftTaskState // старому лівому переназначили правого сусіда старого правого
+                .ifPresent(it -> {
+                    it.setRightTaskState(optionalOldRightTaskState.orElse(null));
+
+                    taskStateRepository.saveAndFlush(it);
+                });
+
+        optionalOldRightTaskState // старому правому переназначили лівого сусіда старого лівого
+                .ifPresent(it -> {
+                    it.setLeftTaskState(optionalOldLeftTaskState.orElse(null));
+
+                    taskStateRepository.saveAndFlush(it);
+                });
     }
 
     private TaskStateEntity getTaskStateOrThrowException(Long taskStateId) {
